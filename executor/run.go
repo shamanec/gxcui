@@ -19,6 +19,11 @@ type EventType string
 
 // Events emitted during a run.
 const (
+	EventResetStarted     EventType = "reset-started"
+	EventResetFinished    EventType = "reset-finished"
+	EventShutdownStarted  EventType = "shutdown-started"
+	EventShutdownFinished EventType = "shutdown-finished"
+
 	EventBootStarted   EventType = "boot-started"
 	EventBootFinished  EventType = "boot-finished"
 	EventBuildStarted  EventType = "build-started"
@@ -87,6 +92,12 @@ type RunPlan struct {
 	// Boot lists the simulators a real run would boot first. A dry run never
 	// boots them itself.
 	Boot []string `json:"boot,omitempty"`
+	// Reset lists the simulators a real run would shut down and erase before
+	// anything else, and Shutdown those it would shut down when it finishes.
+	// Both are named in full, since a dry run is where anyone checks what a
+	// destructive setting actually covers.
+	Reset    []string `json:"reset,omitempty"`
+	Shutdown []string `json:"shutdown,omitempty"`
 	// Commands are the xcodebuild invocations, one per batch, in batch order.
 	Commands []string `json:"commands"`
 }
@@ -122,6 +133,18 @@ func (e *Executor) DryRun(ctx context.Context, opts RunOptions) (*RunPlan, error
 		Strategy:  e.cfg.Batching.Strategy,
 		Boot:      e.cfg.bootTargets(),
 	}
+	if e.cfg.Simulators.ResetBefore || e.cfg.Simulators.ShutdownAfter {
+		scope, err := e.lifecycleScope(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if e.cfg.Simulators.ResetBefore {
+			plan.Reset = deviceNames(scope.Devices)
+		}
+		if e.cfg.Simulators.ShutdownAfter {
+			plan.Shutdown = deviceNames(scope.Devices)
+		}
+	}
 	for _, batch := range prep.batches {
 		command, err := xcodebuild.TestCommand(xcodebuild.TestOptions{
 			Project:          prep.project,
@@ -152,10 +175,14 @@ type preparation struct {
 // prepare boots the configured simulators, then resolves devices, builds if
 // needed, enumerates and plans batches.
 func (e *Executor) prepare(ctx context.Context, opts RunOptions) (*preparation, error) {
-	// Booting has to come first: a simulator that is still coming up is not
-	// booted yet as far as the selection step is concerned. A dry run is meant
-	// to be free of side effects, so it only reports what it would boot.
+	// Resetting and booting have to come first: a simulator that is still
+	// coming up is not booted yet as far as the selection step is concerned. A
+	// dry run is meant to be free of side effects, so it only reports what it
+	// would do to the simulators.
 	if !opts.DryRun {
+		if err := e.resetSimulators(ctx, opts); err != nil {
+			return nil, err
+		}
 		if err := e.bootSimulators(ctx, opts); err != nil {
 			return nil, err
 		}
@@ -285,10 +312,12 @@ func (e *Executor) Run(ctx context.Context, opts RunOptions) (*RunResult, error)
 
 	prep, err := e.prepare(ctx, opts)
 	if err != nil {
-		return nil, err
+		// The simulators may already have been reset and booted, so release
+		// them even though the run never got as far as a test.
+		return nil, errors.Join(err, e.shutdownSimulators(ctx, opts))
 	}
 	if err := prep.dirs.create(); err != nil {
-		return nil, err
+		return nil, errors.Join(err, e.shutdownSimulators(ctx, opts))
 	}
 
 	result := &RunResult{
@@ -334,12 +363,19 @@ func (e *Executor) Run(ctx context.Context, opts RunOptions) (*RunResult, error)
 	result.FinishedAt = opts.now()
 	result.Seconds = result.FinishedAt.Sub(result.StartedAt).Seconds()
 
+	// The simulators are released as soon as the last batch is in: the reports
+	// are built from result bundles on disk and need no simulator, so holding
+	// several gigabytes of them through the slowest part of the run would be
+	// pure waste. A failure here is reported but does not fail the run — the
+	// tests have already had their say.
+	shutdownErr := e.shutdownSimulators(ctx, opts)
+
 	// Reports are written even for an interrupted run, from whatever completed.
 	opts.emit(Event{Type: EventReporting, Message: "writing reports"})
 	if err := e.report(ctx, prep, result, opts); err != nil {
-		return result, err
+		return result, errors.Join(err, shutdownErr)
 	}
-	return result, nil
+	return result, shutdownErr
 }
 
 // runPass executes one round of batches, one at a time per simulator.

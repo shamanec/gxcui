@@ -26,15 +26,16 @@ func Boot(ctx context.Context, r exec.Runner, device string) error {
 		return fmt.Errorf("simctl bootstatus %s: %w", device, err)
 	}
 	if res.ExitCode != 0 {
-		return fmt.Errorf("simctl bootstatus %s: exit %d: %s", device, res.ExitCode, bootFailure(res))
+		return fmt.Errorf("simctl bootstatus %s: exit %d: %s", device, res.ExitCode, failureReason(res))
 	}
 	return nil
 }
 
-// bootFailure picks the part of a failed bootstatus worth putting in an error.
-// simctl reports the reason on stderr, but a device that never came up leaves
-// its progress on stdout instead, so fall back to that rather than to nothing.
-func bootFailure(res *exec.Result) string {
+// failureReason picks the part of a failed simctl command worth putting in an
+// error. simctl reports the reason on stderr, but a device that never came up
+// leaves its progress on stdout instead, so fall back to that rather than to
+// nothing.
+func failureReason(res *exec.Result) string {
 	if msg := strings.TrimSpace(res.Stderr); msg != "" {
 		return msg
 	}

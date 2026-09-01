@@ -65,12 +65,13 @@ type ProjectConfig struct {
 	DerivedDataPath string `yaml:"derivedDataPath"`
 }
 
-// SimulatorsConfig selects which simulators gxcui may use, and whether it boots
-// them itself.
+// SimulatorsConfig selects which simulators gxcui may use, and how much of
+// their lifecycle it manages.
 //
-// gxcui never erases, creates or shuts down a simulator. Booting is the one
-// exception, it is off by default, and it only ever touches the simulators
-// Include names.
+// gxcui never creates or deletes a simulator, and by default it does not change
+// one either: it uses what is already booted. Booting, erasing and shutting
+// down are each opt-in, and each is confined to the simulators the run owns —
+// the ones Include names, or every simulator when Include is empty.
 type SimulatorsConfig struct {
 	// Include lists UDIDs or device names to use. Empty means every booted
 	// simulator is eligible.
@@ -84,6 +85,19 @@ type SimulatorsConfig struct {
 	// BootTimeout bounds one simulator's boot. A simulator that is not up by
 	// then fails the run rather than holding it up indefinitely.
 	BootTimeout Duration `yaml:"bootTimeout"`
+	// ResetBefore shuts the simulators down and erases them before the run, so
+	// the tests start from a device with no installed app, no granted
+	// permissions and nothing the last run left behind.
+	//
+	// It leaves them shut down, so it needs BootSims: booting is that setting's
+	// job, and gxcui does not take it upon itself to boot a simulator it was
+	// not told to boot. The two together erase the Include simulators and then
+	// bring them up clean.
+	ResetBefore bool `yaml:"resetBefore"`
+	// ShutdownAfter shuts the same set of simulators down once the last batch
+	// has finished, releasing the memory they hold. An interrupted run still
+	// shuts them down.
+	ShutdownAfter bool `yaml:"shutdownAfter"`
 }
 
 // TestsConfig narrows the enumerated test set.
@@ -254,6 +268,13 @@ func (c *Config) ValidateWithoutProject() error {
 	}
 	if c.Simulators.BootSims && len(c.bootTargets()) == 0 {
 		return fmt.Errorf("simulators.bootSims needs simulators.include: gxcui only boots the simulators you name")
+	}
+	// Erasing a simulator shuts it down, and gxcui boots nothing it was not told
+	// to boot. Without bootSims the run would therefore erase its way to an
+	// empty pool and fail — and it would have wiped the simulators first, which
+	// is not something to discover after the fact.
+	if c.Simulators.ResetBefore && !c.Simulators.BootSims {
+		return fmt.Errorf("simulators.resetBefore needs simulators.bootSims: erasing a simulator shuts it down, so nothing would be left booted to run on")
 	}
 	if err := validatePatterns("tests.include", c.Tests.Include); err != nil {
 		return err

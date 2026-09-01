@@ -43,6 +43,14 @@ func (p *progressPrinter) handle(e executor.Event) {
 	defer p.mu.Unlock()
 
 	switch e.Type {
+	case executor.EventResetStarted:
+		p.line("Erasing %s", e.Message)
+	case executor.EventResetFinished:
+		p.line("Erased %s", e.Message)
+	case executor.EventShutdownStarted:
+		p.line("Shutting down %s", e.Message)
+	case executor.EventShutdownFinished:
+		p.line("Shut down %s", e.Message)
 	case executor.EventBootStarted:
 		p.line("Booting %s", e.Message)
 	case executor.EventBootFinished:

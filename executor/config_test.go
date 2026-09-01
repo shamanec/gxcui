@@ -183,6 +183,18 @@ func TestConfigValidate(t *testing.T) {
 			wantErr: "simulators.bootSims needs simulators.include",
 		},
 		{
+			// Erasing shuts a simulator down, so without bootSims the run would
+			// wipe its own pool and then have nothing to run on — and it would
+			// have done the wiping before finding out.
+			name: "resetBefore without bootSims",
+			mutate: func(c *Config) {
+				c.Project.XCTestRun = "App.xctestrun"
+				c.Simulators.Include = []string{"xcpool-1"}
+				c.Simulators.ResetBefore = true
+			},
+			wantErr: "simulators.resetBefore needs simulators.bootSims",
+		},
+		{
 			name: "unsupported version",
 			mutate: func(c *Config) {
 				c.Project.XCTestRun = "App.xctestrun"

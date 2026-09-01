@@ -28,9 +28,12 @@ project:
 # Which simulators to use. Entries are UDIDs or device names. An empty include
 # list means every booted simulator.
 #
-# gxcui never erases, creates or shuts down a simulator. Booting is the one
-# exception, it is off by default, and it only ever touches the simulators
-# include names — so a simulator someone else is using cannot be disturbed.
+# gxcui never creates or deletes a simulator, and by default it does not change
+# one either — it uses what is already booted. Booting, erasing and shutting
+# down are each off until you turn them on, and each is confined to the
+# simulators include names, so a simulator someone else is using is not
+# disturbed. With an empty include list there is nothing to confine them to:
+# they then apply to every simulator on the machine.
 simulators:
   include: []
   exclude: []
@@ -41,6 +44,17 @@ simulators:
   # How long one simulator gets to come up. A simulator that is not booted by
   # then fails the run rather than holding it up indefinitely.
   bootTimeout: 5m
+  # Shut the simulators down and erase them before the run, so the tests start
+  # on a device with no installed app, no granted permissions and nothing the
+  # last run left behind.
+  #
+  # Erasing leaves them shut down, so this needs bootSims to bring them back up
+  # — booting is that setting's job, and gxcui boots nothing it was not told to
+  # boot. The pair erases the include simulators and then boots them clean.
+  resetBefore: false
+  # Shut the simulators down once the last batch has finished, releasing the
+  # memory they hold. An interrupted run still shuts them down.
+  shutdownAfter: false
 
 # Which tests to run. Patterns match the full "Target/Class/method()"
 # identifier. "*" matches any characters including "/", "?" matches one, and a

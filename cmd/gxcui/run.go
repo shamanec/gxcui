@@ -25,16 +25,18 @@ var errTestsFailed = errors.New("tests failed")
 
 func newRunCommand(global *globalFlags) *cobra.Command {
 	var (
-		dryRun   bool
-		strategy string
-		batches  int
-		attempts int
-		outDir   string
-		bootSims bool
-		coverage bool
-		noReport bool
-		noHTML   bool
-		quiet    bool
+		dryRun        bool
+		strategy      string
+		batches       int
+		attempts      int
+		outDir        string
+		bootSims      bool
+		resetBefore   bool
+		shutdownAfter bool
+		coverage      bool
+		noReport      bool
+		noHTML        bool
+		quiet         bool
 	)
 
 	cmd := &cobra.Command{
@@ -43,7 +45,9 @@ func newRunCommand(global *globalFlags) *cobra.Command {
 		Long: "Run builds the project if needed, discovers its tests, splits them into batches\n" +
 			"and runs each batch on a different booted simulator.\n\n" +
 			"With simulators.bootSims, or --boot-sims, the named simulators are booted first,\n" +
-			"all at once, and the run waits for them.\n\n" +
+			"all at once, and the run waits for them. Adding simulators.resetBefore erases them\n" +
+			"first so they come up clean, and simulators.shutdownAfter releases them when the\n" +
+			"run is done.\n\n" +
 			"Each batch writes its own result bundle and log. When the run finishes, the\n" +
 			"bundles are merged into one, a JUnit report is written, and per-test durations\n" +
 			"are recorded so the next run can balance its batches better.\n\n" +
@@ -73,6 +77,12 @@ func newRunCommand(global *globalFlags) *cobra.Command {
 			// explicitly given --boot-sims overrides the config file.
 			if cmd.Flags().Changed("boot-sims") {
 				cfg.Simulators.BootSims = bootSims
+			}
+			if cmd.Flags().Changed("reset-before") {
+				cfg.Simulators.ResetBefore = resetBefore
+			}
+			if cmd.Flags().Changed("shutdown-after") {
+				cfg.Simulators.ShutdownAfter = shutdownAfter
 			}
 			if cmd.Flags().Changed("coverage") {
 				cfg.Output.HTML.Coverage = coverage
@@ -131,6 +141,8 @@ func newRunCommand(global *globalFlags) *cobra.Command {
 	f.IntVar(&attempts, "attempts", 0, "how many times a failing test may run in total")
 	f.StringVar(&outDir, "output-dir", "", "where to write run directories")
 	f.BoolVar(&bootSims, "boot-sims", false, "boot the simulators named by --simulator or simulators.include before running")
+	f.BoolVar(&resetBefore, "reset-before", false, "shut down and erase those simulators before running; needs --boot-sims to bring them back up")
+	f.BoolVar(&shutdownAfter, "shutdown-after", false, "shut those simulators down once the last batch has finished")
 	f.BoolVar(&coverage, "coverage", false, "include code coverage in the HTML report, when the run gathered any")
 	f.BoolVar(&noReport, "no-report", false, "skip merging result bundles and writing the JUnit and HTML reports")
 	f.BoolVar(&noHTML, "no-html", false, "skip the HTML report, which is the slowest one to produce")
@@ -142,8 +154,14 @@ func printPlan(w io.Writer, plan *executor.RunPlan) error {
 	fmt.Fprintf(w, "xctestrun: %s\n", plan.XCTestRun)
 	fmt.Fprintf(w, "strategy:  %s\n", plan.Strategy)
 
+	if len(plan.Reset) > 0 {
+		fmt.Fprintf(w, "reset:     %s\n", strings.Join(plan.Reset, ", "))
+	}
 	if len(plan.Boot) > 0 {
 		fmt.Fprintf(w, "boot:      %s\n", strings.Join(plan.Boot, ", "))
+	}
+	if len(plan.Shutdown) > 0 {
+		fmt.Fprintf(w, "shutdown:  %s\n", strings.Join(plan.Shutdown, ", "))
 	}
 
 	fmt.Fprintf(w, "\nsimulators (%d):\n", len(plan.Devices))

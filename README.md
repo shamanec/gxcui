@@ -141,12 +141,12 @@ simulator at the same time, because a UI test needs exclusive control of the dev
 
 ## Simulators
 
-**By default gxcui only consumes simulators that are already booted.** It never erases,
-creates, shuts down or deletes one, and it boots one only when you ask it to and only when
-you have named it. That is deliberate: a test runner that manages simulator lifecycle can
-destroy a simulator someone else was using, and recovering from that is tedious. Boot what
-you want with `xcrun simctl boot <udid>`, and gxcui will use it — or hand the job to gxcui
-with [`bootSims`](#booting-simulators).
+**By default gxcui only consumes simulators that are already booted.** It never creates or
+deletes one, and it boots, erases or shuts one down only when you ask it to. That is
+deliberate: a test runner that manages simulator lifecycle can destroy a simulator someone
+else was using, and recovering from that is tedious. Boot what you want with
+`xcrun simctl boot <udid>`, and gxcui will use it — or hand the job to gxcui with
+[`bootSims`](#booting-simulators), [`resetBefore` and `shutdownAfter`](#erasing-and-shutting-down).
 
 The number of booted, eligible simulators is the concurrency of the run. Two booted
 simulators means two batches at a time.
@@ -225,6 +225,72 @@ How many should you boot? Reports of simulator instability past three or four co
 UI test runs on one machine are common, and the ceiling depends on your host's RAM and
 cores far more than on gxcui. Start with two or three and increase while wall-clock time
 still improves.
+
+### Erasing and shutting down
+
+Two more opt-in settings cover the rest of the simulator lifecycle:
+
+```yaml
+simulators:
+  include: [xcpool-1, xcpool-2]
+  bootSims: true
+  resetBefore: true     # shut down + erase before the run; bootSims brings them up
+  shutdownAfter: true   # shut down once the last batch finishes
+```
+
+or `gxcui run --reset-before --shutdown-after`, which override the config either way —
+`--reset-before=false` turns it off for one run.
+
+```
+$ gxcui run --boot-sims --reset-before --shutdown-after
+Erasing 2 simulator(s): xcpool-1, xcpool-2
+Erased 2 simulator(s)
+Booting 2 simulator(s): xcpool-1, xcpool-2
+Booted xcpool-2 (1/2)
+Booted xcpool-1 (2/2)
+Building for testing…
+…
+Shutting down 2 simulator(s): xcpool-1, xcpool-2
+Shut down 2 simulator(s)
+Writing reports…
+```
+
+**`resetBefore` is `simctl shutdown` followed by `simctl erase`.** Erasing is what "clean"
+means for a simulator — no installed app, no granted permissions, no keychain, nothing the
+last run wrote — and it is the only way a suite starts from the same place every time.
+simctl refuses to erase a booted device, hence the shutdown first.
+
+- **It needs `bootSims`,** and gxcui says so rather than letting the run find out. Erasing
+  leaves a simulator shut down, and booting is `bootSims`' job: a simulator gxcui did not
+  boot is not one it will boot back. Without the pair, a reset would erase the pool the run
+  was going to use and then fail with nothing booted — after the erasing. `bootSims` needs
+  `include`, so a reset is always scoped to simulators you named.
+- **It runs before anything else**, so the build and the enumeration already see clean
+  devices.
+
+**`shutdownAfter` is `simctl shutdown`, and nothing else.** It happens as soon as the last
+batch is in, before the reports are written: those are built from result bundles on disk and
+need no simulator, so there is no reason to hold a few gigabytes of RAM through the slowest
+part of the run. A run interrupted with Ctrl-C still shuts its simulators down, and a
+simulator that will not shut down is reported as a warning rather than failing the run — the
+tests have already had their say.
+
+**Both follow `include`.** The scope is the simulators you named, so nothing else on the
+machine is touched:
+
+| `include` | `exclude` | what it covers |
+|---|---|---|
+| set | — | those simulators, one `simctl` command each |
+| empty | empty | **every simulator on the machine**, in one `simctl … all` |
+| empty | set | every simulator except the excluded ones, one command each |
+
+The last two rows only ever apply to `shutdownAfter`, since `resetBefore` requires
+`bootSims` and so requires `include`. Read them twice anyway: an empty `include` means
+"every booted simulator", so `shutdownAfter` with no `include` shuts down every simulator
+the machine has, including ones that have nothing to do with your tests. On a CI worker that
+is exactly what you want. On your own laptop, name the simulators. `--dry-run` prints the
+full list under `reset:` and `shutdown:` before anything is touched, and `exclude` is
+honoured in every case — an excluded simulator is one gxcui was told to keep its hands off.
 
 ## Selecting tests
 
@@ -681,8 +747,13 @@ guessing would silently run the wrong set of tests.
 | `exclude` | `[]` | UDIDs or device names to skip; wins over `include` |
 | `bootSims` | `false` | boot the `include` simulators before the run; requires `include` |
 | `bootTimeout` | `5m` | how long one simulator gets to boot before the run gives up on it |
+| `resetBefore` | `false` | shut down and erase them before the run; requires `bootSims` to boot them back up |
+| `shutdownAfter` | `false` | shut them down once the last batch has finished |
 
-See [Booting simulators](#booting-simulators).
+See [Booting simulators](#booting-simulators) and
+[Erasing and shutting down](#erasing-and-shutting-down). Both apply to the `include`
+simulators; `shutdownAfter` with an empty `include` applies to **every** simulator on the
+machine.
 
 ### `tests` — what to run
 
@@ -764,6 +835,8 @@ Builds if needed, discovers, batches, runs, retries and reports.
 | `--attempts N` | override `retries.maxAttempts` |
 | `--output-dir` | override `output.dir` |
 | `--boot-sims` | override `simulators.bootSims`; boot the named simulators before running |
+| `--reset-before` | override `simulators.resetBefore`; shut down and erase them first, with `--boot-sims` |
+| `--shutdown-after` | override `simulators.shutdownAfter`; shut them down when the last batch finishes |
 | `--coverage` | override `output.html.coverage`; include code coverage in the report |
 | `--no-html` | skip the HTML report, the slowest of the three to produce |
 | `--no-report` | skip merging, JUnit and HTML for this run |

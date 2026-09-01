@@ -1,10 +1,10 @@
-// Package simctl reads the simulator inventory via `xcrun simctl`, and boots
-// simulators when asked to.
+// Package simctl reads the simulator inventory via `xcrun simctl`, and boots,
+// shuts down and erases simulators when asked to.
 //
-// Booting is the only thing gxcui ever changes about a simulator, and only for
-// the ones the configuration names. It never erases, creates, shuts down or
-// deletes one: those are the operations that can destroy a simulator someone
-// else was using, and recovering from that is tedious.
+// Everything here beyond reading the inventory changes a simulator, so nothing
+// here happens unless the configuration turns it on: those are the operations
+// that can destroy a simulator someone else was using, and recovering from that
+// is tedious. gxcui never creates or deletes one.
 package simctl
 
 import (

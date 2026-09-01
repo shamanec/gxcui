@@ -2,10 +2,8 @@ package executor
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/shamanec/gxcui/internal/simctl"
 )
@@ -52,11 +50,6 @@ func excludes(exclude []string, name string) bool {
 
 // bootSimulators boots every configured simulator and waits for all of them.
 //
-// They are booted at the same time because a simulator takes tens of seconds to
-// come up, and doing four in sequence would put minutes on the front of every
-// run. Each boot gets its own deadline, so one wedged simulator cannot hold the
-// run up past simulators.bootTimeout.
-//
 // A simulator that fails to boot fails the run. It was named in the config, so
 // running without it would quietly mean less parallelism than was asked for —
 // or, when it was the only one, no run at all a step later.
@@ -69,46 +62,16 @@ func (e *Executor) bootSimulators(ctx context.Context, opts RunOptions) error {
 	opts.emit(Event{Type: EventBootStarted, Total: len(targets),
 		Message: fmt.Sprintf("%d simulator(s): %s", len(targets), strings.Join(targets, ", "))})
 
-	var (
-		mu     sync.Mutex
-		booted int
-	)
-	errs := make([]error, len(targets))
-
-	var wg sync.WaitGroup
-	for i, target := range targets {
-		wg.Add(1)
-		go func(i int, target string) {
-			defer wg.Done()
-
-			bootCtx, cancel := context.WithTimeout(ctx, e.cfg.Simulators.BootTimeout.Duration())
-			defer cancel()
-
-			err := simctl.Boot(bootCtx, e.runner, target)
-			switch {
-			case err == nil:
-			case ctx.Err() != nil:
-				errs[i] = fmt.Errorf("boot %s: %w", target, ctx.Err())
-			case errors.Is(bootCtx.Err(), context.DeadlineExceeded):
-				errs[i] = fmt.Errorf("boot %s: not booted within simulators.bootTimeout (%s)",
-					target, e.cfg.Simulators.BootTimeout)
-			default:
-				errs[i] = err
-			}
-			if errs[i] != nil {
-				return
-			}
-
-			mu.Lock()
-			booted++
-			done := booted
-			mu.Unlock()
-
+	return e.eachSimulator(ctx, targets, simOp{
+		verb:        "boot",
+		timeout:     e.cfg.Simulators.BootTimeout.Duration(),
+		timeoutHint: "simulators.bootTimeout",
+		run: func(ctx context.Context, target string) error {
+			return simctl.Boot(ctx, e.runner, target)
+		},
+		done: func(target string, completed, total int) {
 			opts.emit(Event{Type: EventBootFinished, Message: target,
-				Completed: done, Total: len(targets)})
-		}(i, target)
-	}
-	wg.Wait()
-
-	return errors.Join(errs...)
+				Completed: completed, Total: total})
+		},
+	})
 }
