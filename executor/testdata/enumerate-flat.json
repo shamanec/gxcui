@@ -1,0 +1,27 @@
+{
+  "errors" : [
+
+  ],
+  "values" : [
+    {
+      "disabledTests" : [
+
+      ],
+      "enabledTests" : [
+        {
+          "identifier" : "SampleTests/AlphaTests/testOne()"
+        },
+        {
+          "identifier" : "SampleTests/AlphaTests/testTwo()"
+        },
+        {
+          "identifier" : "SampleTests/BetaTests/testFails()"
+        },
+        {
+          "identifier" : "SampleTests/BetaTests/testThree()"
+        }
+      ],
+      "testPlan" : "Sample-Package"
+    }
+  ]
+}

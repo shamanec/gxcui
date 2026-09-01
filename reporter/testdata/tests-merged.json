@@ -1,0 +1,147 @@
+{
+  "devices" : [
+    {
+      "architecture" : "arm64",
+      "deviceId" : "92F3C99D-476B-4BA5-B857-A7FAB6C60349",
+      "deviceName" : "xcpool-1",
+      "modelName" : "iPhone SE (3rd generation)",
+      "osBuildNumber" : "23F77",
+      "osVersion" : "26.5",
+      "platform" : "iOS Simulator"
+    },
+    {
+      "architecture" : "arm64",
+      "deviceId" : "8442C46F-83D8-4A3B-8F34-47A4CE4C34D9",
+      "deviceName" : "xcpool-2",
+      "modelName" : "iPhone SE (3rd generation)",
+      "osBuildNumber" : "23F77",
+      "osVersion" : "26.5",
+      "platform" : "iOS Simulator"
+    }
+  ],
+  "testNodes" : [
+    {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "details" : "iOS Simulator 26.5",
+                      "duration" : "0,0012s",
+                      "durationInSeconds" : 0.0011720657348632812,
+                      "name" : "iPhone SE (3rd generation)",
+                      "nodeIdentifier" : "92F3C99D-476B-4BA5-B857-A7FAB6C60349",
+                      "nodeType" : "Device",
+                      "result" : "Passed"
+                    }
+                  ],
+                  "duration" : "0,0012s",
+                  "durationInSeconds" : 0.0011720657348632812,
+                  "name" : "testOne()",
+                  "nodeIdentifier" : "AlphaTests/testOne()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Sample/SampleTests/AlphaTests/testOne",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "children" : [
+                    {
+                      "details" : "iOS Simulator 26.5",
+                      "duration" : "0,00068s",
+                      "durationInSeconds" : 0.0006849765777587891,
+                      "name" : "iPhone SE (3rd generation)",
+                      "nodeIdentifier" : "92F3C99D-476B-4BA5-B857-A7FAB6C60349",
+                      "nodeType" : "Device",
+                      "result" : "Passed"
+                    }
+                  ],
+                  "duration" : "0,00068s",
+                  "durationInSeconds" : 0.0006849765777587891,
+                  "name" : "testTwo()",
+                  "nodeIdentifier" : "AlphaTests/testTwo()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Sample/SampleTests/AlphaTests/testTwo",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "AlphaTests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/Sample/SampleTests/AlphaTests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            },
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "children" : [
+                        {
+                          "name" : "AlphaTests.swift:11: XCTAssertEqual failed: (\"2\") is not equal to (\"3\")",
+                          "nodeType" : "Failure Message"
+                        }
+                      ],
+                      "details" : "iOS Simulator 26.5",
+                      "duration" : "0,24s",
+                      "durationInSeconds" : 0.2420259714126587,
+                      "name" : "iPhone SE (3rd generation)",
+                      "nodeIdentifier" : "8442C46F-83D8-4A3B-8F34-47A4CE4C34D9",
+                      "nodeType" : "Device",
+                      "result" : "Failed"
+                    }
+                  ],
+                  "duration" : "0,24s",
+                  "durationInSeconds" : 0.2420259714126587,
+                  "name" : "testFails()",
+                  "nodeIdentifier" : "BetaTests/testFails()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Sample/SampleTests/BetaTests/testFails",
+                  "nodeType" : "Test Case",
+                  "result" : "Failed"
+                },
+                {
+                  "children" : [
+                    {
+                      "details" : "iOS Simulator 26.5",
+                      "duration" : "0,00044s",
+                      "durationInSeconds" : 0.0004431009292602539,
+                      "name" : "iPhone SE (3rd generation)",
+                      "nodeIdentifier" : "8442C46F-83D8-4A3B-8F34-47A4CE4C34D9",
+                      "nodeType" : "Device",
+                      "result" : "Passed"
+                    }
+                  ],
+                  "duration" : "0,00044s",
+                  "durationInSeconds" : 0.0004431009292602539,
+                  "name" : "testThree()",
+                  "nodeIdentifier" : "BetaTests/testThree()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/Sample/SampleTests/BetaTests/testThree",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "BetaTests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/Sample/SampleTests/BetaTests",
+              "nodeType" : "Test Suite",
+              "result" : "Failed"
+            }
+          ],
+          "name" : "SampleTests",
+          "nodeIdentifierURL" : "test://com.apple.xcode/Sample/SampleTests",
+          "nodeType" : "Unit test bundle",
+          "result" : "Failed"
+        }
+      ],
+      "name" : "Sample-Package",
+      "nodeType" : "Test Plan",
+      "result" : "Failed"
+    }
+  ],
+  "testPlanConfigurations" : [
+    {
+      "configurationId" : "1",
+      "configurationName" : "Test Scheme Action"
+    }
+  ]
+}

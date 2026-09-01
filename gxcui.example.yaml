@@ -1,0 +1,123 @@
+# gxcui configuration. Copy to gxcui.yaml and edit.
+#
+# gxcui looks for gxcui.yaml (or gxcui.yml) in the current directory unless
+# --config is given. Every setting can be overridden by a flag; flags win.
+#
+# Unknown keys are an error rather than a silently ignored setting, so a typo
+# here fails loudly.
+
+version: 1
+
+# What to test. Set exactly one of workspace, project, xctestrun or
+# testProducts.
+project:
+  # Point at the project and gxcui builds it once with build-for-testing, then
+  # runs every batch from the resulting .xctestrun. scheme is required;
+  # testPlan and configuration are optional.
+  workspace: MyApp.xcworkspace
+  scheme: MyAppUITests
+  # testPlan: Smoke
+  # configuration: Debug
+  # derivedDataPath: .gxcui/dd
+
+  # Or skip the build entirely with a prebuilt .xctestrun. This is what CI
+  # should do when an earlier stage already built the tests.
+  # xctestrun: .gxcui/dd/Build/Products/MyApp_MyAppUITests_iphonesimulator26.5-arm64.xctestrun
+  # testProducts: MyApp_MyAppUITests.xctestproducts
+
+# Which simulators to use. Entries are UDIDs or device names. An empty include
+# list means every booted simulator.
+#
+# gxcui never erases, creates or shuts down a simulator. Booting is the one
+# exception, it is off by default, and it only ever touches the simulators
+# include names — so a simulator someone else is using cannot be disturbed.
+simulators:
+  include: []
+  exclude: []
+  # Boot the simulators listed above before the run, instead of expecting them
+  # to be booted already. They are booted at the same time, and the run waits
+  # for all of them. Needs a non-empty include list.
+  bootSims: false
+  # How long one simulator gets to come up. A simulator that is not booted by
+  # then fails the run rather than holding it up indefinitely.
+  bootTimeout: 5m
+
+# Which tests to run. Patterns match the full "Target/Class/method()"
+# identifier. "*" matches any characters including "/", "?" matches one, and a
+# "re:" prefix switches to an anchored regular expression. A trailing "()" is
+# optional on both sides.
+tests:
+  include: []
+  exclude:
+    - "MyAppUITests/FlakyTests/*"
+  enumerate:
+    # Discovery installs and launches the test host, so a large UI test target
+    # needs considerably longer than a small one.
+    timeout: 10m
+
+# How the tests are split across simulators.
+batching:
+  # duration — balance batches by recorded running time (default, and the only
+  #            strategy that stops one slow class becoming a straggler)
+  # class    — keep every test of a class together, then balance whole classes
+  # count    — fixed number of tests per batch, in order
+  # shard    — spread tests round-robin over a fixed number of batches
+  strategy: duration
+  # How many batches to produce. Zero means two per simulator, so a simulator
+  # that finishes early takes more work instead of idling.
+  batches: 0
+  # Tests per batch, used only by the count strategy.
+  batchSize: 10
+
+execution:
+  # A batch that overruns is killed, and its tests are treated as unaccounted
+  # for so they can be retried.
+  batchTimeout: 30m
+  # Seconds any single test may run. Zero leaves the test plan's own setting
+  # alone.
+  testTimeout: 0
+  # Appended verbatim to every xcodebuild test invocation.
+  extraArgs: []
+  # Appended verbatim to build-for-testing, for things like code signing.
+  buildArgs: []
+  #  - CODE_SIGNING_ALLOWED=NO
+
+retries:
+  # How many times a test may run in total. One means no retries.
+  maxAttempts: 2
+  # Re-run each failed test on its own, so a test that only fails alongside a
+  # particular neighbour gets a fair second chance.
+  isolate: true
+
+output:
+  # Each run gets its own timestamped directory here, holding per-batch result
+  # bundles and logs, the merged bundle, junit.xml and run.json.
+  dir: .gxcui/runs
+  # Combine the per-batch bundles into one merged .xcresult, which is what the
+  # HTML report and Xcode expect to be given.
+  merge: true
+  junit: true
+  # A single self-contained HTML file, built from the merged bundle.
+  html:
+    enabled: true
+    # Relative to the run directory unless absolute.
+    path: report.html
+    # Step-by-step logs and embedded screenshots each cost an xcresulttool call
+    # per test, and attachments are what make the file large — a full UI run
+    # with every screen recording embedded can reach hundreds of megabytes. So
+    # both default to failures only, which is where anyone reads them.
+    # One of: none, failed, all.
+    activities: failed
+    attachments: failed
+    # Skip any single attachment larger than this. Zero means no limit.
+    maxAttachmentSizeMB: 0
+    # Add a line-coverage breakdown per target and source file. Off by default:
+    # it needs the run to have gathered coverage, and it costs an extra pass
+    # over every batch bundle. A run without coverage simply omits the section.
+    # Also available as `gxcui run --coverage`.
+    coverage: false
+  # Retain the per-batch bundles and logs, for debugging after test run
+  keepResultBundles: true
+  # Per-test durations, used to balance the next run's batches. Teams can
+  # commit this file so CI machines share the data.
+  timingsFile: .gxcui/timings.json

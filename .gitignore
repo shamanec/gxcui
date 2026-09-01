@@ -1,0 +1,21 @@
+# Binaries and build output
+/bin/
+# Anchored: a bare "gxcui" would also match the cmd/gxcui directory.
+/gxcui
+
+# Test and coverage output
+*.test
+*.out
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Local gxcui state
+/.gxcui/
+gxcui.yaml

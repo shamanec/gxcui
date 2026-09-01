@@ -1,0 +1,56 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -xctestrun ./DD/Build/Products/Sample-Package_Sample-Package_iphonesimulator26.5-arm64.xctestrun -destination "platform=iOS Simulator,id=92F3C99D-476B-4BA5-B857-A7FAB6C60349" -enumerate-tests -test-enumeration-style hierarchical -test-enumeration-format json -test-enumeration-output-path -
+
+
+Test session results, code coverage, and logs:
+	/Users/admin/Library/Developer/Xcode/DerivedData/sample-cnnaevmfwwrijcgstjqvyxujuxdw/Logs/Test/Test-Sample-Package-2026.08.17_11-04-49-+0300.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+{
+  "errors" : [
+
+  ],
+  "values" : [
+    {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "kind" : "test",
+                  "name" : "testOne()"
+                },
+                {
+                  "kind" : "test",
+                  "name" : "testTwo()"
+                }
+              ],
+              "kind" : "class",
+              "name" : "AlphaTests"
+            },
+            {
+              "children" : [
+                {
+                  "kind" : "test",
+                  "name" : "testFails()"
+                },
+                {
+                  "kind" : "test",
+                  "name" : "testThree()"
+                }
+              ],
+              "kind" : "class",
+              "name" : "BetaTests"
+            }
+          ],
+          "kind" : "target",
+          "name" : "SampleTests"
+        }
+      ],
+      "kind" : "plan",
+      "name" : "Sample-Package"
+    }
+  ]
+}

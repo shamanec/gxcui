@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ .Title }} — Test Report</title>
+  <style>{{ .CSS }}</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <h1>{{ .Title }}</h1>
+    <span class="result-badge {{ .Result | resultClass }}">{{ .Result | resultLabel }}</span>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat total">
+      <span class="stat-value">{{ .Counts.Total }}</span>
+      <span class="stat-label">Total</span>
+    </div>
+    <div class="stat passed">
+      <span class="stat-value">{{ .Counts.Passed }}</span>
+      <span class="stat-label">Passed</span>
+    </div>
+    <div class="stat failed">
+      <span class="stat-value">{{ .Counts.Failed }}</span>
+      <span class="stat-label">Failed</span>
+    </div>
+    {{ if gt .Counts.Skipped 0 }}
+    <div class="stat skipped">
+      <span class="stat-value">{{ .Counts.Skipped }}</span>
+      <span class="stat-label">Skipped</span>
+    </div>
+    {{ end }}
+    {{ if gt .Counts.Flaky 0 }}
+    <div class="stat flaky">
+      <span class="stat-value">{{ .Counts.Flaky }}</span>
+      <span class="stat-label">Flaky</span>
+    </div>
+    {{ end }}
+    {{ if gt .Counts.ExpectedFailures 0 }}
+    <div class="stat expected-failure">
+      <span class="stat-value">{{ .Counts.ExpectedFailures }}</span>
+      <span class="stat-label">Xfail</span>
+    </div>
+    {{ end }}
+  </div>
+
+  <div class="meta-row">
+    {{ with .Seconds | formatSeconds }}<span class="meta-item">⏱ {{ . }} elapsed</span>{{ end }}
+    {{ if .ShowTestTime }}<span class="meta-item">🧪 {{ .TestSeconds | formatSeconds }} of tests across {{ len .Devices }} devices/simulators</span>{{ end }}
+    {{ with .StartTime | formatTime }}<span class="meta-item">📅 {{ . }}</span>{{ end }}
+    {{ if .Environment }}<span class="meta-item">🌐 {{ .Environment }}</span>{{ end }}
+  </div>
+</header>
+
+{{ if .Devices }}
+<div class="devices">
+  {{ range .Devices }}
+  <span class="device-chip">{{ .Name }}{{ if .OSVersion }} · {{ .Platform }} {{ .OSVersion }}{{ end }}{{ if .Architecture }} · {{ .Architecture }}{{ end }}</span>
+  {{ end }}
+</div>
+{{ end }}
+
+<main>
+  {{ with .Coverage }}
+  <details class="coverage">
+    <summary>
+      <span class="coverage-title">Code coverage</span>
+      <span class="coverage-total {{ .Percent | coverageClass }}">{{ .Percent | formatPercent }}</span>
+      <span class="coverage-lines">{{ .CoveredLines }} / {{ .ExecutableLines }} lines</span>
+    </summary>
+    <div class="coverage-body">
+      {{ range .Targets }}
+      <details class="coverage-target">
+        <summary>
+          <span class="coverage-name">{{ .Name }}</span>
+          <span class="coverage-bar"><span class="coverage-fill {{ .Percent | coverageClass }}" style="{{ .Percent | coverageWidth }}"></span></span>
+          <span class="coverage-pct {{ .Percent | coverageClass }}">{{ .Percent | formatPercent }}</span>
+          <span class="coverage-lines">{{ .CoveredLines }} / {{ .ExecutableLines }}</span>
+        </summary>
+        <table class="coverage-files">
+          <thead>
+            <tr><th>File</th><th class="num">Uncovered</th><th class="num">Lines</th><th class="num">Coverage</th></tr>
+          </thead>
+          <tbody>
+            {{ range .Files }}
+            <tr>
+              <td class="coverage-file" title="{{ .Path }}">{{ .Name }}</td>
+              <td class="num">{{ .UncoveredLines }}</td>
+              <td class="num">{{ .ExecutableLines }}</td>
+              <td class="num {{ .Percent | coverageClass }}">{{ .Percent | formatPercent }}</td>
+            </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </details>
+      {{ end }}
+    </div>
+  </details>
+  {{ end }}
+
+  <input type="text" id="filter" class="filter" placeholder="Filter tests…" oninput="filterTests(this.value)" autocomplete="off">
+  <label class="filter-toggle">
+    <input type="checkbox" id="only-failures" onchange="filterTests(document.getElementById('filter').value)">
+    Failures only
+  </label>
+
+  {{ range .Suites }}
+  <details class="suite" {{ if .Result.Failed }}open{{ end }}>
+    <summary>
+      <span class="dot {{ .Result | resultClass }}"></span>
+      {{ .Name }}
+      {{ with .Seconds | formatSeconds }}<span class="duration-label">{{ . }}</span>{{ end }}
+    </summary>
+    <div class="suite-body">
+      {{ range .Classes }}
+      <details class="class" {{ if .Result.Failed }}open{{ end }}>
+        <summary>
+          <span class="dot {{ .Result | resultClass }}"></span>
+          {{ .Name }}
+          {{ with .Seconds | formatSeconds }}<span class="duration-label">{{ . }}</span>{{ end }}
+        </summary>
+        <div class="class-body">
+          {{ range .Tests }}
+          <div class="test-item {{ .Result | resultClass }}" data-name="{{ .Identifier }}" data-result="{{ .Result | resultClass }}">
+            <div class="test-header">
+              <span class="dot {{ .Result | resultClass }}"></span>
+              <span class="test-name">{{ .Name }}</span>
+              {{ if .Flaky }}<span class="badge flaky">flaky</span>
+              {{ else if .Retried }}<span class="badge retried">{{ .Attempts }} attempts</span>{{ end }}
+              {{ if and $.ShowDevices .Device }}<span class="badge device">{{ .Device }}</span>{{ end }}
+              <span class="result-label {{ .Result | resultClass }}">{{ .Result | resultLabel }}</span>
+              {{ with .Seconds | formatSeconds }}<span class="duration-label">{{ . }}</span>{{ end }}
+            </div>
+
+            {{ if .FailureMessage }}
+            <div class="failure-details">
+              <div class="failure-message">{{ .FailureMessage }}</div>
+              {{ if .SourceLocation }}<div class="source-location">{{ .SourceLocation }}</div>{{ end }}
+            </div>
+            {{ end }}
+
+            {{ if .Attachments }}
+            <div class="attachments">
+              {{ range .Attachments }}{{ template "attachment" . }}{{ end }}
+            </div>
+            {{ end }}
+
+            {{ if .Activities }}
+            <div class="activity-wrap">
+              <details class="activity-log">
+                <summary>Activity log ({{ .Activities | countActivities }} steps)</summary>
+                {{ template "activities" .Activities }}
+              </details>
+            </div>
+            {{ end }}
+          </div>
+          {{ end }}
+        </div>
+      </details>
+      {{ end }}
+    </div>
+  </details>
+  {{ end }}
+</main>
+
+<footer>
+  {{ if .Generator }}Generated by {{ .Generator }}{{ else }}Generated by gxcui{{ end }}
+</footer>
+
+<script>
+// Filtering is plain DOM work so the report stays a single file with no
+// dependencies. Suites and classes hide themselves once all their tests are hidden.
+function filterTests(query) {
+  const needle = query.trim().toLowerCase();
+  const failuresOnly = document.getElementById('only-failures').checked;
+
+  document.querySelectorAll('.test-item').forEach(function (item) {
+    const matchesText = !needle || item.dataset.name.toLowerCase().includes(needle);
+    const matchesResult = !failuresOnly || item.dataset.result === 'failed';
+    item.hidden = !(matchesText && matchesResult);
+  });
+
+  document.querySelectorAll('details.class').forEach(function (cls) {
+    const visible = cls.querySelectorAll('.test-item:not([hidden])').length;
+    cls.hidden = visible === 0;
+    if (visible > 0 && (needle || failuresOnly)) cls.open = true;
+  });
+
+  document.querySelectorAll('details.suite').forEach(function (suite) {
+    const visible = suite.querySelectorAll('.test-item:not([hidden])').length;
+    suite.hidden = visible === 0;
+    if (visible > 0 && (needle || failuresOnly)) suite.open = true;
+  });
+}
+
+// Recordings travel as base64 on the element and become blob URLs here, rather
+// than being written straight into the markup as data: URIs. Safari refuses to
+// play a video from a data: URI at all, and a report holding several of them
+// makes every browser decode hundreds of megabytes before it shows anything.
+// Hydrating on first sight costs nothing until the reader opens the test.
+function hydrateVideo(video) {
+  const encoded = video.dataset.b64;
+  if (encoded === undefined) return;
+  delete video.dataset.b64;
+  video.removeAttribute('data-b64');
+
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  video.preload = 'metadata';
+  video.src = URL.createObjectURL(new Blob([bytes], { type: video.dataset.mime || 'video/mp4' }));
+}
+
+(function () {
+  // Expanding a test is the deliberate "show me the recording", so it hydrates
+  // whatever it revealed. Scrolling to one already on show does the same.
+  document.addEventListener('toggle', function (event) {
+    if (event.target.open) event.target.querySelectorAll('video[data-b64]').forEach(hydrateVideo);
+  }, true);
+
+  const videos = document.querySelectorAll('video[data-b64]');
+  if (!window.IntersectionObserver) {
+    videos.forEach(hydrateVideo);
+    return;
+  }
+  const observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (!entry.isIntersecting) return;
+      observer.unobserve(entry.target);
+      hydrateVideo(entry.target);
+    });
+  });
+  videos.forEach(function (video) { observer.observe(video); });
+})();
+</script>
+
+</body>
+</html>
+
+{{ define "activities" }}
+<ul class="activity-list">
+  {{ range . }}
+  <li class="activity-item">
+    <span class="activity-title">{{ .Title }}</span>
+    {{ if .Attachments }}
+    <div class="attachments">
+      {{ range .Attachments }}{{ template "attachment" . }}{{ end }}
+    </div>
+    {{ end }}
+    {{ if .Children }}{{ template "activities" .Children }}{{ end }}
+  </li>
+  {{ end }}
+</ul>
+{{ end }}
+
+{{ define "attachment" }}
+<div class="{{ .MIMEType | attachmentKind }}">
+  {{ if .Omitted }}
+  <div class="attachment-missing">Not embedded — {{ .Bytes | formatBytes }} is over the size limit</div>
+  {{ else if isImage .MIMEType }}
+  <img src="data:{{ .MIMEType }};base64,{{ .Data }}" alt="{{ .Name }}" loading="lazy">
+  {{ else if isVideo .MIMEType }}
+  <video controls preload="none" data-mime="{{ .MIMEType }}" data-b64="{{ .Data }}"></video>
+  {{ else if isText .MIMEType }}
+  <details class="text-body">
+    <summary>{{ .Name }} <span class="attachment-size">{{ .Bytes | formatBytes }}</span></summary>
+    <pre>{{ .Text }}</pre>
+    {{ if .Truncated }}<div class="attachment-missing">Truncated — open the result bundle for the rest</div>{{ end }}
+  </details>
+  {{ else }}
+  <a class="attachment-download" href="data:{{ .MIMEType }};base64,{{ .Data }}" download="{{ .Name }}">Download {{ .Bytes | formatBytes }}</a>
+  {{ end }}
+  {{ if not (isText .MIMEType) }}<div class="attachment-label">{{ .Name }}</div>{{ end }}
+</div>
+{{ end }}

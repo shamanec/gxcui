@@ -1,0 +1,36 @@
+{
+  "devices" : {
+    "com.apple.CoreSimulator.SimRuntime.iOS-18-1" : [
+      {
+        "udid" : "AD2B8BC3-6650-403E-8194-F17A697E65DE",
+        "isAvailable" : true,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation",
+        "state" : "Shutdown",
+        "name" : "iPhone SE (3rd generation)"
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.iOS-26-5" : [
+      {
+        "udid" : "92F3C99D-476B-4BA5-B857-A7FAB6C60349",
+        "isAvailable" : true,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation",
+        "state" : "Booted",
+        "name" : "xcpool-1"
+      },
+      {
+        "udid" : "8442C46F-83D8-4A3B-8F34-47A4CE4C34D9",
+        "isAvailable" : true,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation",
+        "state" : "Booted",
+        "name" : "xcpool-2"
+      },
+      {
+        "udid" : "F103BA63-C81F-4DF9-BB2F-7EE66F5B628E",
+        "isAvailable" : false,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation",
+        "state" : "Shutdown",
+        "name" : "xcpool-3"
+      }
+    ]
+  }
+}
