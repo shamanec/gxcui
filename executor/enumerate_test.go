@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"strings"
@@ -166,6 +167,52 @@ func TestEnumerateWhenEveryDeviceIsFilteredOut(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "filtered out") {
 		t.Errorf("Enumerate() error = %q, want it to blame the simulator filters", err)
+	}
+}
+
+// With execution.xcodebuildOutput on, xcodebuild's own output reaches the
+// caller untouched, while the enumerated tests still come back through the
+// return value.
+func TestEnumerateStreamsXcodebuildOutput(t *testing.T) {
+	enumeration := enumerationResponse(t)
+	enumeration.Stdout = "Test Suite 'All tests' started\n** TEST BUILD SUCCEEDED **\n"
+
+	cfg := xctestrunConfig()
+	cfg.Execution.XcodebuildOutput = true
+	e, _ := newTestExecutor(cfg,
+		exec.Response{Stdout: fixture(t, "devices.json")},
+		enumeration,
+	)
+
+	var out bytes.Buffer
+	got, err := e.Enumerate(context.Background(), EnumerateOptions{Output: &out})
+	if err != nil {
+		t.Fatalf("Enumerate() error = %v", err)
+	}
+	if got.Count() == 0 {
+		t.Error("Count() = 0, want the enumerated tests")
+	}
+	if out.String() != enumeration.Stdout {
+		t.Errorf("stream = %q, want %q", out.String(), enumeration.Stdout)
+	}
+}
+
+// The config half of the gate: a writer alone streams nothing.
+func TestEnumerateDoesNotStreamUnlessConfigured(t *testing.T) {
+	enumeration := enumerationResponse(t)
+	enumeration.Stdout = "** TEST BUILD SUCCEEDED **\n"
+
+	e, _ := newTestExecutor(xctestrunConfig(),
+		exec.Response{Stdout: fixture(t, "devices.json")},
+		enumeration,
+	)
+
+	var out bytes.Buffer
+	if _, err := e.Enumerate(context.Background(), EnumerateOptions{Output: &out}); err != nil {
+		t.Fatalf("Enumerate() error = %v", err)
+	}
+	if out.Len() != 0 {
+		t.Errorf("streamed %q with execution.xcodebuildOutput off", out.String())
 	}
 }
 

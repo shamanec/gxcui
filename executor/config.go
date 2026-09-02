@@ -144,6 +144,15 @@ type ExecutionConfig struct {
 	// BuildArgs are appended verbatim to build-for-testing, for things like
 	// code signing settings.
 	BuildArgs []string `yaml:"buildArgs"`
+	// XcodebuildOutput streams xcodebuild's own output as it is produced,
+	// instead of only leaving it in the per-batch log files. It says whether
+	// there is a stream; RunOptions.Output and EnumerateOptions.Output say
+	// where it goes, so this package still writes nowhere the caller did not
+	// name. Both are needed for any output.
+	//
+	// It is off by default: batches run at once, and four simulators' worth of
+	// build noise is not what most runs want to watch.
+	XcodebuildOutput bool `yaml:"xcodebuildOutput"`
 }
 
 // RetriesConfig controls what happens to tests that fail.

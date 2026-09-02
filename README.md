@@ -32,6 +32,17 @@ records how long every test took so the next run can split the work better.
 
 ## Install
 
+Every tagged release has an Apple silicon binary attached. Download `gxcui` from
+[Releases](https://github.com/shamanec/gxcui/releases), then:
+
+```bash
+chmod +x gxcui
+xattr -d com.apple.quarantine gxcui   # only if macOS quarantined the download
+mv gxcui /usr/local/bin/
+```
+
+Or build it yourself:
+
 ```bash
 go build -o bin/gxcui ./cmd/gxcui
 ```
@@ -515,6 +526,45 @@ identifies the same *set of tests* across runs even when the numbering shifts.
 Set `output.keepResultBundles: false` to delete the per-batch bundles once they have been
 merged, if disk space matters more than per-batch detail.
 
+### Watching xcodebuild
+
+By default gxcui reports progress, not xcodebuild's output: a run across four simulators
+produces four streams of build noise at once, and the interesting part of it is in
+`logs/<batch-id>.log` afterwards either way. `execution.xcodebuildOutput` prints it as it
+happens instead, the way running the command by hand would:
+
+```yaml
+execution:
+  xcodebuildOutput: true
+```
+
+`--xcodebuild-output` turns it on for one invocation, and `--xcodebuild-output=false` turns
+it off again when the config file has it on:
+
+```bash
+gxcui run --xcodebuild-output
+gxcui enumerate --xcodebuild-output
+```
+
+It goes to **stderr**, so the summary and the enumerated test list on stdout stay usable on
+their own — `gxcui enumerate --xcodebuild-output | grep Login` still works, and
+`2>/dev/null` still turns it off.
+
+The build and the enumeration are one process each and stream through untouched. Batches are
+not: several run at once, so each line is tagged with the batch it came from.
+
+```
+** BUILD SUCCEEDED **
+[batch-01] Test Suite 'AlphaTests' started at 2026-08-17 13:56:22
+[batch-02] Test Suite 'BetaTests' started at 2026-08-17 13:56:23
+[batch-01] Test Case '-[AlphaTests testLogin]' passed (4.117 seconds).
+```
+
+Lines are buffered until complete, so two batches writing at the same time cannot land
+inside one another. The log files are unaffected — they hold the raw output, without the
+tag, since each one holds a single batch anyway. The flag also turns off the pinned progress
+line, which cannot share the bottom row of the terminal with a process printing into it.
+
 ### `run.json`
 
 The machine-readable record of everything that happened. Useful fields:
@@ -783,6 +833,7 @@ times out.
 | `testTimeout` | `0` | seconds any single test may run; zero leaves the test plan's own setting alone |
 | `extraArgs` | `[]` | appended verbatim to every `xcodebuild test` invocation |
 | `buildArgs` | `[]` | appended verbatim to `build-for-testing`, for things like `CODE_SIGNING_ALLOWED=NO` |
+| `xcodebuildOutput` | `false` | stream xcodebuild's own output as it runs — see [Watching xcodebuild](#watching-xcodebuild) |
 
 ### `retries`
 
@@ -841,6 +892,7 @@ Builds if needed, discovers, batches, runs, retries and reports.
 | `--no-html` | skip the HTML report, the slowest of the three to produce |
 | `--no-report` | skip merging, JUnit and HTML for this run |
 | `-q, --quiet` | print only the final summary |
+| `--xcodebuild-output` | override `execution.xcodebuildOutput`; stream xcodebuild's own output to stderr as it runs |
 
 **Exit codes** — distinct on purpose, because CI cannot otherwise tell "your tests are
 broken" from "gxcui could not run them":
@@ -862,6 +914,7 @@ any tests.
 | `--device` | simulator to enumerate on, by UDID or name |
 | `-v, --verbose` | also report filtered and disabled tests |
 | `--dry-run` | print the xcodebuild command instead of running it |
+| `--xcodebuild-output` | override `execution.xcodebuildOutput`; stream xcodebuild's own output to stderr as it runs |
 
 ### `gxcui devices`
 
@@ -931,7 +984,8 @@ override only the field they name, so `--include` still leaves `tests.exclude` i
 
 **A batch reports "no-results"** — xcodebuild exited without leaving a readable result
 bundle. Its tests are reported as unaccounted and retried. The full output is in
-`logs/<batch-id>.log`; the exact command that produced it is in `run.json`.
+`logs/<batch-id>.log`; the exact command that produced it is in `run.json`. To watch it
+happen rather than read it afterwards, re-run with `--xcodebuild-output`.
 
 **Everything is slower than expected** — check the per-batch durations in the summary. If
 one batch dominates, you are looking at a straggler: the `duration` strategy needs a run or

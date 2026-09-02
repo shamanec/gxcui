@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -90,6 +91,9 @@ func (f *fakeXcode) enumerate(cmd exec.Command) (*exec.Result, error) {
 		"values": []map[string]any{{"testPlan": "Plan", "enabledTests": enabled, "disabledTests": []any{}}},
 	}
 	data, _ := json.Marshal(doc)
+	if cmd.Stdout != nil {
+		fmt.Fprintln(cmd.Stdout, "** TEST BUILD SUCCEEDED **")
+	}
 	return &exec.Result{}, os.WriteFile(argValue(cmd.Args, "-test-enumeration-output-path"), data, 0o644)
 }
 
@@ -116,6 +120,11 @@ func (f *fakeXcode) runTests(cmd exec.Command) (*exec.Result, error) {
 
 	if err := os.MkdirAll(bundle, 0o755); err != nil {
 		return nil, err
+	}
+	if cmd.Stdout != nil {
+		// Real xcodebuild prints as it goes, which is what the log file and the
+		// --xcodebuild-output stream both capture.
+		fmt.Fprintf(cmd.Stdout, "Testing %s\n", filepath.Base(bundle))
 	}
 	if failed {
 		return &exec.Result{ExitCode: 65}, nil
@@ -494,6 +503,82 @@ func TestRunInterrupted(t *testing.T) {
 	}
 	if _, err := os.Stat(result.Artifacts.Manifest); err != nil {
 		t.Errorf("no manifest written for an interrupted run: %v", err)
+	}
+}
+
+// With execution.xcodebuildOutput on and a writer to send it to, xcodebuild's
+// own output reaches the caller live, tagged per batch, and still lands in the
+// per-batch log file.
+func TestRunStreamsXcodebuildOutput(t *testing.T) {
+	tests := []string{
+		"App/AlphaTests/testOne()",
+		"App/AlphaTests/testTwo()",
+		"App/BetaTests/testThree()",
+		"App/BetaTests/testFour()",
+	}
+	fake := newFakeXcode(t, tests)
+	cfg := runConfig(t)
+	cfg.Execution.XcodebuildOutput = true
+	e := &Executor{cfg: &cfg, runner: fake}
+
+	var out bytes.Buffer
+	result, err := e.Run(context.Background(), RunOptions{Now: fixedClock(), Output: &out})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	got := out.String()
+
+	// Enumeration is a single process before any batch starts, so it goes
+	// through untagged, the way running the command by hand would print it.
+	if !strings.Contains(got, "** TEST BUILD SUCCEEDED **\n") {
+		t.Errorf("enumeration output missing from the stream:\n%s", got)
+	}
+
+	for _, b := range result.Batches {
+		want := fmt.Sprintf("[%s] Testing %s.xcresult\n", b.ID, b.ID)
+		if !strings.Contains(got, want) {
+			t.Errorf("stream is missing %q:\n%s", want, got)
+		}
+
+		log, err := os.ReadFile(b.Log)
+		if err != nil {
+			t.Fatalf("read batch log: %v", err)
+		}
+		// The log file keeps the raw output: the tag is for the terminal, where
+		// batches are interleaved, not for a file that holds only one of them.
+		if !strings.Contains(string(log), fmt.Sprintf("Testing %s.xcresult", b.ID)) {
+			t.Errorf("batch %s log lost the output: %q", b.ID, log)
+		}
+		if strings.Contains(string(log), "["+b.ID+"]") {
+			t.Errorf("batch %s log was tagged: %q", b.ID, log)
+		}
+	}
+}
+
+// Offering a writer is not enough on its own: with execution.xcodebuildOutput
+// off, nothing is streamed, but the logs are written as always.
+func TestRunDoesNotStreamUnlessConfigured(t *testing.T) {
+	fake := newFakeXcode(t, []string{"App/AlphaTests/testOne()"})
+	cfg := runConfig(t)
+	e := &Executor{cfg: &cfg, runner: fake}
+
+	var out bytes.Buffer
+	result, err := e.Run(context.Background(), RunOptions{Now: fixedClock(), Output: &out})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if out.Len() != 0 {
+		t.Errorf("streamed %q with execution.xcodebuildOutput off", out.String())
+	}
+	for _, b := range result.Batches {
+		log, err := os.ReadFile(b.Log)
+		if err != nil {
+			t.Fatalf("read batch log: %v", err)
+		}
+		if !strings.Contains(string(log), "Testing "+b.ID+".xcresult") {
+			t.Errorf("batch %s log is empty: %q", b.ID, log)
+		}
 	}
 }
 

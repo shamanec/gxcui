@@ -3,6 +3,8 @@ package executor
 import (
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -296,4 +298,93 @@ func TestExampleConfigIsValid(t *testing.T) {
 		t.Errorf("example html.activities = %q, want the documented default %q",
 			cfg.Output.HTML.Activities, reporter.DetailFailed)
 	}
+}
+
+// Loading the example proves nothing about the settings it forgot to mention:
+// a key added to Config and never written down is invisible to everyone who
+// learns the format from the file they copied. Commented-out keys count, since
+// naming a setting is the point.
+func TestExampleConfigDocumentsEverySetting(t *testing.T) {
+	documented := yamlKeysIn(t, filepath.Join("..", "gxcui.example.yaml"))
+
+	for _, key := range yamlPaths(reflect.TypeOf(Config{}), "") {
+		if !documented[key] {
+			t.Errorf("gxcui.example.yaml never mentions %q", key)
+		}
+	}
+}
+
+// yamlPaths returns the dotted yaml key of every setting in a config struct.
+func yamlPaths(t reflect.Type, prefix string) []string {
+	var paths []string
+	for i := range t.NumField() {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		name, _, _ := strings.Cut(field.Tag.Get("yaml"), ",")
+		if name == "" || name == "-" {
+			continue
+		}
+		if prefix != "" {
+			name = prefix + "." + name
+		}
+		// A type with yaml-tagged fields of its own is a section. Duration and
+		// Toggle are not: they unmarshal from a single scalar.
+		if field.Type.Kind() == reflect.Struct && hasTaggedFields(field.Type) {
+			paths = append(paths, yamlPaths(field.Type, name)...)
+			continue
+		}
+		paths = append(paths, name)
+	}
+	return paths
+}
+
+func hasTaggedFields(t reflect.Type) bool {
+	for i := range t.NumField() {
+		if name, _, _ := strings.Cut(t.Field(i).Tag.Get("yaml"), ","); t.Field(i).IsExported() && name != "" && name != "-" {
+			return true
+		}
+	}
+	return false
+}
+
+// yamlKeyLine matches a key at the start of a line, whether it is live or
+// commented out. Prose in a comment does not match: the colon has to follow
+// the word immediately.
+var yamlKeyLine = regexp.MustCompile(`^(\s*)(?:#\s*)?([A-Za-z][A-Za-z0-9]*):`)
+
+// yamlKeysIn returns the dotted key of every line in a YAML file that names
+// one, tracking nesting by indentation.
+func yamlKeysIn(t *testing.T, path string) map[string]bool {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+
+	keys := map[string]bool{}
+	var open []string
+	var indents []int
+
+	for _, line := range strings.Split(string(data), "\n") {
+		m := yamlKeyLine.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		indent, name := len(m[1]), m[2]
+
+		// Close every section this key is not inside.
+		for len(indents) > 0 && indents[len(indents)-1] >= indent {
+			indents, open = indents[:len(indents)-1], open[:len(open)-1]
+		}
+		full := name
+		if len(open) > 0 {
+			full = strings.Join(open, ".") + "." + name
+		}
+
+		keys[full] = true
+		indents, open = append(indents, indent), append(open, name)
+	}
+	return keys
 }

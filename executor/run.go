@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -63,6 +64,16 @@ type RunOptions struct {
 	DryRun bool
 	// Progress receives events as the run proceeds. Optional.
 	Progress ProgressFunc
+	// Output is where xcodebuild's own output goes when
+	// execution.xcodebuildOutput is on — the build, the enumeration and every
+	// batch, the way running xcodebuild by hand would show it. Batch lines are
+	// tagged with the batch they came from, since batches run at the same time.
+	//
+	// Offering a writer does not by itself turn streaming on, and turning it on
+	// without one produces nothing: the config decides whether, this decides
+	// where. Per-batch log files are written either way, so this only affects
+	// what the caller sees live.
+	Output io.Writer
 	// RunID overrides the generated run identifier, which is otherwise derived
 	// from the start time.
 	RunID string
@@ -81,6 +92,16 @@ func (o RunOptions) emit(e Event) {
 	if o.Progress != nil {
 		o.Progress(e)
 	}
+}
+
+// streamTo returns where xcodebuild's live output should go, or nil when this
+// run streams none. Both halves have to be present: the configuration turns
+// streaming on, and the caller says where it lands.
+func (e *Executor) streamTo(w io.Writer) io.Writer {
+	if w == nil || !e.cfg.Execution.XcodebuildOutput {
+		return nil
+	}
+	return w
 }
 
 // Plan is the work a run intends to do, as produced by a dry run.
@@ -170,6 +191,9 @@ type preparation struct {
 	timings *reporter.Timings
 	dirs    runDirs
 	runID   string
+	// stream carries xcodebuild's live output to RunOptions.Output. It is nil
+	// when the caller did not ask for any.
+	stream *lineStream
 }
 
 // prepare boots the configured simulators, then resolves devices, builds if
@@ -208,7 +232,10 @@ func (e *Executor) prepare(ctx context.Context, opts RunOptions) (*preparation, 
 		return nil, err
 	}
 
-	enumeration, err := e.enumerateProject(ctx, project, devices[0])
+	// The build and the enumeration are one process each, run before any batch
+	// starts, so their output goes through untagged — exactly what the same
+	// xcodebuild command would print.
+	enumeration, err := e.enumerateProject(ctx, project, devices[0], e.streamTo(opts.Output))
 	if err != nil {
 		return nil, err
 	}
@@ -249,6 +276,7 @@ func (e *Executor) prepare(ctx context.Context, opts RunOptions) (*preparation, 
 		batches: batches,
 		timings: timings,
 		runID:   runID,
+		stream:  newLineStream(e.streamTo(opts.Output)),
 		dirs: runDirs{
 			root:    root,
 			batches: filepath.Join(root, "batches"),
@@ -277,6 +305,8 @@ func (e *Executor) resolveProject(ctx context.Context, device Device, opts RunOp
 		Project:     project,
 		Destination: xcodebuild.SimulatorDestination(device.UDID),
 		ExtraArgs:   e.cfg.Execution.BuildArgs,
+		Stdout:      e.streamTo(opts.Output),
+		Stderr:      e.streamTo(opts.Output),
 	})
 	if err != nil {
 		return xcodebuild.Project{}, err
@@ -478,6 +508,14 @@ func (e *Executor) runBatch(ctx context.Context, prep *preparation, batch Batch,
 	}
 	defer logFile.Close()
 
+	// The log file always gets the full output; the stream is the caller's
+	// live copy, tagged so that concurrent batches stay tellable apart.
+	out := io.Writer(logFile)
+	if tagged := prep.stream.writer("[" + batch.ID + "] "); tagged != nil {
+		defer tagged.flush()
+		out = io.MultiWriter(logFile, tagged)
+	}
+
 	batchCtx, cancel := context.WithTimeout(ctx, e.cfg.Execution.BatchTimeout.Duration())
 	defer cancel()
 
@@ -488,8 +526,8 @@ func (e *Executor) runBatch(ctx context.Context, prep *preparation, batch Batch,
 		ResultBundlePath: bundlePath,
 		TestTimeout:      e.cfg.Execution.TestTimeout,
 		ExtraArgs:        e.cfg.Execution.ExtraArgs,
-		Stdout:           logFile,
-		Stderr:           logFile,
+		Stdout:           out,
+		Stderr:           out,
 	})
 	if run != nil {
 		result.ExitCode = run.ExitCode

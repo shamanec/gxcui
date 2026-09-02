@@ -11,13 +11,17 @@ version: 1
 # What to test. Set exactly one of workspace, project, xctestrun or
 # testProducts.
 project:
-  # Point at the project and gxcui builds it once with build-for-testing, then
-  # runs every batch from the resulting .xctestrun. scheme is required;
-  # testPlan and configuration are optional.
+  # Point at the workspace or project and gxcui builds it once with
+  # build-for-testing, then runs every batch from the resulting .xctestrun.
+  # scheme is required; testPlan and configuration are optional.
   workspace: MyApp.xcworkspace
+  # Or an .xcodeproj, for a project with no workspace.
+  # project: MyApp.xcodeproj
   scheme: MyAppUITests
   # testPlan: Smoke
   # configuration: Debug
+  # Where the build writes, and where the .xctestrun is then found. Defaults to
+  # .gxcui/dd when `gxcui run` does the build itself.
   # derivedDataPath: .gxcui/dd
 
   # Or skip the build entirely with a prebuilt .xctestrun. This is what CI
@@ -95,6 +99,12 @@ execution:
   # Appended verbatim to build-for-testing, for things like code signing.
   buildArgs: []
   #  - CODE_SIGNING_ALLOWED=NO
+  # Print xcodebuild's own output to stderr as it runs, the way invoking
+  # xcodebuild by hand would, instead of only leaving it in logs/<batch-id>.log.
+  # Batches run at once, so their lines are tagged with the batch they came
+  # from; the build and the enumeration stream through untagged.
+  # Also available as `gxcui run --xcodebuild-output`.
+  xcodebuildOutput: false
 
 retries:
   # How many times a test may run in total. One means no retries.

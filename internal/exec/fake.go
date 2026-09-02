@@ -3,6 +3,7 @@ package exec
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync"
 )
 
@@ -61,6 +62,14 @@ func (f *Fake) Run(ctx context.Context, cmd Command) (*Result, error) {
 	}
 	if resp.Err != nil {
 		return nil, resp.Err
+	}
+	// Mirror OS: a caller that asked for streaming output gets it here too, so
+	// the streaming paths are testable without Xcode.
+	if cmd.Stdout != nil && resp.Stdout != "" {
+		io.WriteString(cmd.Stdout, resp.Stdout)
+	}
+	if cmd.Stderr != nil && resp.Stderr != "" {
+		io.WriteString(cmd.Stderr, resp.Stderr)
 	}
 	return &Result{Stdout: resp.Stdout, Stderr: resp.Stderr, ExitCode: resp.ExitCode}, nil
 }

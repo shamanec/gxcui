@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +36,10 @@ type EnumerateOptions struct {
 	// ExtraArgs are appended verbatim, as an escape hatch for flags gxcui does
 	// not model.
 	ExtraArgs []string
+	// Stdout and Stderr, when set, receive the process output as it arrives.
+	// The enumeration JSON is unaffected: it goes to a file, not to stdout.
+	Stdout io.Writer
+	Stderr io.Writer
 }
 
 // EnumerateArgs renders the full argument vector for an enumeration run writing
@@ -156,7 +161,7 @@ func Enumerate(ctx context.Context, r exec.Runner, opts EnumerateOptions) (*Flat
 		return nil, err
 	}
 
-	res, err := r.Run(ctx, exec.Command{Name: Binary, Args: args})
+	res, err := r.Run(ctx, exec.Command{Name: Binary, Args: args, Stdout: opts.Stdout, Stderr: opts.Stderr})
 	if err != nil {
 		return nil, fmt.Errorf("enumerate tests: %w", err)
 	}

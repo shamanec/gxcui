@@ -19,10 +19,11 @@ const (
 
 func newEnumerateCommand(global *globalFlags) *cobra.Command {
 	var (
-		format  string
-		device  string
-		dryRun  bool
-		verbose bool
+		format      string
+		device      string
+		dryRun      bool
+		verbose     bool
+		xcodeOutput bool
 	)
 
 	cmd := &cobra.Command{
@@ -41,10 +42,16 @@ func newEnumerateCommand(global *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if cmd.Flags().Changed("xcodebuild-output") {
+				cfg.Execution.XcodebuildOutput = xcodeOutput
+			}
 
 			result, err := executor.New(cfg).Enumerate(cmd.Context(), executor.EnumerateOptions{
 				Device: device,
 				DryRun: dryRun,
+				// stderr, so the list on stdout is still pipeable. Whether
+				// anything is written there is the config's call.
+				Output: cmd.ErrOrStderr(),
 			})
 			if err != nil {
 				return err
@@ -65,6 +72,7 @@ func newEnumerateCommand(global *globalFlags) *cobra.Command {
 	f.StringVar(&device, "device", "", "simulator to enumerate on, by UDID or name (default: the first eligible one)")
 	f.BoolVar(&dryRun, "dry-run", false, "print the xcodebuild command instead of running it")
 	f.BoolVarP(&verbose, "verbose", "v", false, "also report filtered and disabled tests")
+	f.BoolVar(&xcodeOutput, "xcodebuild-output", false, "override execution.xcodebuildOutput; stream xcodebuild's own output to stderr as it runs")
 	return cmd
 }
 

@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/shamanec/gxcui/internal/xcodebuild"
 )
@@ -15,6 +16,12 @@ type EnumerateOptions struct {
 	// DryRun builds the command without running it. The returned Enumeration
 	// carries only the Command field.
 	DryRun bool
+	// Output is where xcodebuild's own output goes when
+	// execution.xcodebuildOutput is on, the way running the same command by
+	// hand would show it. The config decides whether there is a stream, this
+	// decides where; both are needed. The discovered tests come back through
+	// the return value either way — the JSON never goes to stdout.
+	Output io.Writer
 }
 
 // EnumeratedPlan is one test plan's worth of discovered tests.
@@ -81,7 +88,7 @@ func (e *Executor) Enumerate(ctx context.Context, opts EnumerateOptions) (*Enume
 		}
 		return &Enumeration{Device: device, Command: command}, nil
 	}
-	return e.enumerateProject(ctx, e.cfg.xcodebuildProject(), device)
+	return e.enumerateProject(ctx, e.cfg.xcodebuildProject(), device, e.streamTo(opts.Output))
 }
 
 // enumerateProject discovers the tests in an already-resolved project.
@@ -89,7 +96,7 @@ func (e *Executor) Enumerate(ctx context.Context, opts EnumerateOptions) (*Enume
 // The run path calls this with the built .xctestrun rather than the source
 // project, so that discovery and execution are guaranteed to be looking at the
 // same build.
-func (e *Executor) enumerateProject(ctx context.Context, project xcodebuild.Project, device Device) (*Enumeration, error) {
+func (e *Executor) enumerateProject(ctx context.Context, project xcodebuild.Project, device Device, out io.Writer) (*Enumeration, error) {
 	filter, err := NewFilter(e.cfg.Tests.Include, e.cfg.Tests.Exclude)
 	if err != nil {
 		return nil, err
@@ -99,6 +106,8 @@ func (e *Executor) enumerateProject(ctx context.Context, project xcodebuild.Proj
 		Project:     project,
 		Destination: xcodebuild.SimulatorDestination(device.UDID),
 		Style:       xcodebuild.StyleFlat,
+		Stdout:      out,
+		Stderr:      out,
 	}
 
 	command, err := xcodebuild.EnumerateCommand(xcOpts)

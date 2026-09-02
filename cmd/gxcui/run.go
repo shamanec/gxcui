@@ -37,6 +37,7 @@ func newRunCommand(global *globalFlags) *cobra.Command {
 		noReport      bool
 		noHTML        bool
 		quiet         bool
+		xcodeOutput   bool
 	)
 
 	cmd := &cobra.Command{
@@ -87,6 +88,9 @@ func newRunCommand(global *globalFlags) *cobra.Command {
 			if cmd.Flags().Changed("coverage") {
 				cfg.Output.HTML.Coverage = coverage
 			}
+			if cmd.Flags().Changed("xcodebuild-output") {
+				cfg.Execution.XcodebuildOutput = xcodeOutput
+			}
 			if noHTML {
 				cfg.Output.HTML.Enabled = executor.Off()
 			}
@@ -102,17 +106,25 @@ func newRunCommand(global *globalFlags) *cobra.Command {
 			out := cmd.OutOrStdout()
 
 			if dryRun {
-				plan, err := exec.DryRun(cmd.Context(), executor.RunOptions{})
+				// A dry run runs no tests, but it still builds and enumerates,
+				// which is the slow part and worth watching.
+				plan, err := exec.DryRun(cmd.Context(), executor.RunOptions{Output: cmd.ErrOrStderr()})
 				if err != nil {
 					return err
 				}
 				return printPlan(out, plan)
 			}
 
-			printer := newProgressPrinter(out, !quiet && isTTY(out))
+			// The pinned status line rewrites the bottom row of the terminal,
+			// which it cannot do while xcodebuild is printing into it, so
+			// streaming falls back to plain sequential progress lines.
+			streaming := cfg.Execution.XcodebuildOutput
+			printer := newProgressPrinter(out, !quiet && !streaming && isTTY(out))
 			defer printer.finish()
 
-			opts := executor.RunOptions{Progress: printer.handle}
+			// stderr, so that the summary on stdout stays usable on its own.
+			// Whether anything is written there is the config's call.
+			opts := executor.RunOptions{Progress: printer.handle, Output: cmd.ErrOrStderr()}
 			if quiet {
 				opts.Progress = nil
 			}
@@ -147,6 +159,7 @@ func newRunCommand(global *globalFlags) *cobra.Command {
 	f.BoolVar(&noReport, "no-report", false, "skip merging result bundles and writing the JUnit and HTML reports")
 	f.BoolVar(&noHTML, "no-html", false, "skip the HTML report, which is the slowest one to produce")
 	f.BoolVarP(&quiet, "quiet", "q", false, "only print the final summary")
+	f.BoolVar(&xcodeOutput, "xcodebuild-output", false, "override execution.xcodebuildOutput; stream xcodebuild's own output to stderr as it runs, tagged per batch")
 	return cmd
 }
 

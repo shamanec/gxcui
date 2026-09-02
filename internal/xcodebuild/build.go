@@ -3,6 +3,7 @@ package xcodebuild
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -19,6 +20,9 @@ type BuildOptions struct {
 	Destination string
 	// ExtraArgs are appended verbatim.
 	ExtraArgs []string
+	// Stdout and Stderr, when set, receive the process output as it arrives.
+	Stdout io.Writer
+	Stderr io.Writer
 }
 
 // BuildArgs renders the argument vector for a build-for-testing run.
@@ -54,7 +58,7 @@ func BuildForTesting(ctx context.Context, r exec.Runner, opts BuildOptions) (str
 		return "", err
 	}
 
-	res, err := r.Run(ctx, exec.Command{Name: Binary, Args: args})
+	res, err := r.Run(ctx, exec.Command{Name: Binary, Args: args, Stdout: opts.Stdout, Stderr: opts.Stderr})
 	if err != nil {
 		return "", fmt.Errorf("build for testing: %w", err)
 	}
