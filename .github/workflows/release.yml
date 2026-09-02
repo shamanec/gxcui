@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# gh release create/upload writes to the repository.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: darwin/arm64
+    # An Apple silicon runner, so the binary is built on the architecture it
+    # targets rather than cross-compiled.
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+          CGO_ENABLED: "0"
+        run: |
+          go build -trimpath \
+            -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
+            -o gxcui ./cmd/gxcui
+          ./gxcui --version
+
+      - name: Attach the binary to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A tag pushed on its own has no release yet; a release published
+          # through the GitHub UI creates its tag and already does. Cover both,
+          # rather than having the workflow work only one way round.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" gxcui --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" --generate-notes gxcui
+          fi
