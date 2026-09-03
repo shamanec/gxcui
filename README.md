@@ -7,10 +7,6 @@ into batches, and runs each batch on a different booted simulator. When the run 
 merges the result bundles, writes a JUnit report and a self-contained HTML report, and
 records how long every test took so the next run can split the work better.
 
-> **Status: working.** Discovery, batching, parallel execution, retries and reporting all
-> run end to end. Sharding across CI machines and re-running a previous run's failures are
-> still to come — see [docs/PLAN.md](docs/PLAN.md).
-
 **Contents** — [Requirements](#requirements) · [Install](#install) · [Quick start](#quick-start) ·
 [How a run works](#how-a-run-works) · [Simulators](#simulators) · [Selecting tests](#selecting-tests) ·
 [Batching strategies](#batching-strategies) · [Timings](#timings) · [Retries and flakiness](#retries-and-flakiness) ·
@@ -1014,7 +1010,6 @@ reporter/templates/   the HTML report's template and stylesheet, embedded at bui
 internal/xcodebuild/  argument construction, exit-code semantics, output parsing
 internal/simctl/      simulator inventory
 internal/exec/        the process seam — real and fake runners
-docs/PLAN.md          design, verified xcodebuild behaviour, milestones
 docs/research/        real xcodebuild/xcresulttool output the parsers are built against
 ```
 
